@@ -26,6 +26,7 @@ model User {
   contactFormMessages       ContactFormMessage[]
   tasks                     Task[]
   files                     File[]
+  invoices                  Invoice[]
 }
 
 model GptResponse {
@@ -109,4 +110,123 @@ model ContactFormMessage {
   content                   String
   isRead                    Boolean         @default(false)
   repliedAt                 DateTime?
+}
+
+// ============================================
+// INVOICE PROCESSING MODELS
+// ============================================
+
+model Invoice {
+  id                String          @id @default(uuid())
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  // User relationship
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  
+  // File information
+  fileName          String
+  fileSize          Int             // in bytes
+  fileUrl           String          // GCS public URL
+  mimeType          String          // 'application/pdf' or 'image/png', etc.
+  
+  // Processing status
+  status            InvoiceStatus   @default(UPLOADED)
+  
+  // OCR results (raw text from Hugging Face)
+  ocrText           String?         @db.Text
+  ocrConfidence     Float?
+  ocrProcessedAt    DateTime?
+  
+  // Structured data (JSON from OpenAI)
+  structuredData    Json?
+  llmProcessedAt    DateTime?
+  
+  // Extracted key fields (for quick search/display)
+  vendorName        String?
+  invoiceNumber     String?
+  invoiceDate       DateTime?
+  totalAmount       Float?
+  currency          String?         @default("USD")
+  
+  // Error tracking
+  errorMessage      String?         @db.Text
+  failedAt          DateTime?
+  
+  // Relationships
+  lineItems         InvoiceLineItem[]
+  processingJob     ProcessingJob?
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum InvoiceStatus {
+  UPLOADED          // File uploaded, waiting for payment
+  PAYMENT_REQUIRED  // Needs credits or payment
+  QUEUED            // In processing queue
+  PROCESSING_OCR    // OCR in progress
+  PROCESSING_LLM    // LLM structuring in progress
+  COMPLETED         // Successfully processed
+  FAILED            // Processing failed
+}
+
+// Individual line items extracted from invoice
+model InvoiceLineItem {
+  id            String      @id @default(uuid())
+  createdAt     DateTime    @default(now())
+  
+  invoice       Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId     String
+  
+  // Line item data
+  description   String
+  quantity      Float?
+  unitPrice     Float?
+  amount        Float
+  taxAmount     Float?
+  category      String?
+  
+  // Order in the invoice
+  lineNumber    Int?
+  
+  @@index([invoiceId])
+}
+
+// Async processing job tracker
+model ProcessingJob {
+  id            String      @id @default(uuid())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  invoice       Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId     String      @unique
+  
+  // Job status
+  status        JobStatus   @default(PENDING)
+  currentStep   String?     // 'ocr', 'llm', 'validation'
+  
+  // Retry logic
+  attempts      Int         @default(0)
+  maxAttempts   Int         @default(3)
+  
+  // Timing
+  startedAt     DateTime?
+  completedAt   DateTime?
+  
+  // Error logging
+  errorLog      String?     @db.Text
+  lastError     String?
+  
+  @@index([status])
+}
+
+enum JobStatus {
+  PENDING       // Waiting to start
+  RUNNING       // Currently processing
+  COMPLETED     // Successfully completed
+  FAILED        // Failed after retries
+  RETRYING      // Failed but will retry
 }

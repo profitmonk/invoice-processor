@@ -303,4 +303,18 @@ page AdminMessagesPage {
   authRequired: true,
   component: import AdminMessages from "@src/admin/dashboards/messages/MessagesPage"
 }
+
+// ============================================
+// INVOICE OPERATIONS
+// ============================================
+
+action getUploadUrl {
+  fn: import { getUploadUrl } from "@src/invoice/operations/uploadInvoice",
+  entities: [User]
+}
+
+action createInvoice {
+  fn: import { createInvoice } from "@src/invoice/operations/createInvoice",
+  entities: [User, Invoice, ProcessingJob]
+}
 //#endregion
