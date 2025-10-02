@@ -1,11 +1,40 @@
+////import { Storage } from '@google-cloud/storage';
+////import path from 'path';
+////
+////// Initialize GCS client
+////const storage = new Storage({
+////  projectId: process.env.GCS_PROJECT_ID,
+////  keyFilename: path.resolve(process.cwd(), process.env.GCS_KEY_FILE || '../../../gcp-service-account-key.json')
+////});
+////
+////const bucketName = process.env.GCS_BUCKET_NAME || 'invoice-processor-uploads';
+////const bucket = storage.bucket(bucketName);
+
 import { Storage } from '@google-cloud/storage';
-import path from 'path';
 
 // Initialize GCS client
-const storage = new Storage({
-  projectId: process.env.GCS_PROJECT_ID,
-  keyFilename: path.resolve(process.cwd(), process.env.GCS_KEY_FILE || './gcp-service-account-key.json')
-});
+let storage: Storage;
+
+try {
+  // In production, use environment variable for key file path
+  // In development, GCS client will find credentials automatically if GOOGLE_APPLICATION_CREDENTIALS is set
+  // or use the key file in the app root
+  const keyFilePath = process.env.GCS_KEY_FILE 
+    ? process.env.GCS_KEY_FILE.startsWith('/') 
+      ? process.env.GCS_KEY_FILE
+      : `${process.cwd()}/${process.env.GCS_KEY_FILE}`
+    : `${process.cwd()}/gcp-service-account-key.json`;
+
+  storage = new Storage({
+    projectId: process.env.GCS_PROJECT_ID,
+    keyFilename: keyFilePath,
+  });
+  
+  console.log('GCS Storage initialized with key file:', keyFilePath);
+} catch (error) {
+  console.error('Failed to initialize GCS Storage:', error);
+  throw error;
+}
 
 const bucketName = process.env.GCS_BUCKET_NAME || 'invoice-processor-uploads';
 const bucket = storage.bucket(bucketName);

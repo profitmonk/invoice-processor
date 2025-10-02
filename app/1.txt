@@ -68,8 +68,7 @@ app OpenSaaS {
       // }
     },
     onAuthFailedRedirectTo: "/login",
-    //onAuthSucceededRedirectTo: "/demo-app",
-    onAuthSucceededRedirectTo: "/invoices",
+    onAuthSucceededRedirectTo: "/demo-app",
   },
 
   db: {
@@ -154,11 +153,6 @@ page DemoAppPage {
   component: import DemoAppPage from "@src/demo-ai-app/DemoAppPage"
 }
 
-route InvoicesRoute { path: "/invoices", to: InvoicesPage }
-page InvoicesPage {
-  authRequired: true,
-  component: import InvoicesPage from "@src/invoice/pages/InvoicesPage"
-}
 action generateGptResponse {
   fn: import { generateGptResponse } from "@src/demo-ai-app/operations",
   entities: [User, Task, GptResponse]
