@@ -1,3 +1,4 @@
+import { extractInvoiceData } from '../utils/llm';
 import { HttpError } from 'wasp/server';
 import { processInvoiceOCR, downloadFileFromGCS } from '../utils/ocr';
 
@@ -74,21 +75,89 @@ export const processPendingInvoice = async (
     );
 
     // Update invoice with OCR results
+    ////await context.entities.Invoice.update({
+    ////  where: { id: invoiceId },
+    ////  data: {
+    ////    ocrText: ocrResult.text,
+    ////    ocrConfidence: ocrResult.confidence,
+    ////    ocrProcessedAt: new Date(),
+    ////    status: 'PROCESSING_LLM', // Will do LLM in Phase 5
+    ////  },
+    ////});
+
+    ////console.log(`OCR completed for invoice: ${invoiceId}`);
+
+    ////return {
+    ////  success: true,
+    ////  message: 'OCR processing completed successfully',
+    ////};
+
+    // Update invoice with OCR results
     await context.entities.Invoice.update({
       where: { id: invoiceId },
       data: {
         ocrText: ocrResult.text,
         ocrConfidence: ocrResult.confidence,
         ocrProcessedAt: new Date(),
-        status: 'PROCESSING_LLM', // Will do LLM in Phase 5
+        status: 'PROCESSING_LLM',
       },
     });
 
-    console.log(`OCR completed for invoice: ${invoiceId}`);
+    console.log(`OCR completed, starting LLM extraction for: ${invoiceId}`);
+
+    // Extract structured data with LLM
+    const structuredData = await extractInvoiceData(ocrResult.text);
+
+    // Save line items
+    if (structuredData.lineItems && structuredData.lineItems.length > 0) {
+      await Promise.all(
+        structuredData.lineItems.map((item, index) =>
+          context.entities.InvoiceLineItem.create({
+            data: {
+              invoiceId: invoiceId,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              amount: item.amount,
+              category: item.category,
+              lineNumber: index + 1,
+            },
+          })
+        )
+      );
+    }
+
+    // Update invoice with structured data
+    await context.entities.Invoice.update({
+      where: { id: invoiceId },
+      data: {
+        structuredData: structuredData as any,
+        llmProcessedAt: new Date(),
+        vendorName: structuredData.vendorName,
+        invoiceNumber: structuredData.invoiceNumber,
+        invoiceDate: structuredData.invoiceDate ? new Date(structuredData.invoiceDate) : null,
+        totalAmount: structuredData.totalAmount,
+        currency: structuredData.currency || 'USD',
+        status: 'COMPLETED',
+      },
+    });
+
+    // Mark job as completed
+    if (invoice.processingJob) {
+      await context.entities.ProcessingJob.update({
+        where: { id: invoice.processingJob.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      });
+    }
+
+    console.log(`Processing completed for invoice: ${invoiceId}`);
 
     return {
       success: true,
-      message: 'OCR processing completed successfully',
+      message: 'Invoice processed successfully - OCR and LLM extraction complete',
     };
 
   } catch (error: any) {

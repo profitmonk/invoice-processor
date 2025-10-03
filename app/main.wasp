@@ -325,7 +325,7 @@ action createInvoice {
 }
 action processPendingInvoice {
   fn: import { processPendingInvoice } from "@src/invoice/operations/processInvoice",
-  entities: [User, Invoice, ProcessingJob]
+  entities: [User, Invoice, ProcessingJob, InvoiceLineItem]
 }
 query getUserInvoices {
   fn: import { getUserInvoices } from "@src/invoice/operations/getInvoices",
