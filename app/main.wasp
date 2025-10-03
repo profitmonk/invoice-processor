@@ -323,4 +323,12 @@ action createInvoice {
   fn: import { createInvoice } from "@src/invoice/operations/createInvoice",
   entities: [User, Invoice, ProcessingJob]
 }
+action processPendingInvoice {
+  fn: import { processPendingInvoice } from "@src/invoice/operations/processInvoice",
+  entities: [User, Invoice, ProcessingJob]
+}
+query getUserInvoices {
+  fn: import { getUserInvoices } from "@src/invoice/operations/getInvoices",
+  entities: [User, Invoice]
+}
 //#endregion
