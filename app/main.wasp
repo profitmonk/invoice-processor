@@ -335,4 +335,8 @@ action deleteInvoice {
   fn: import { deleteInvoice } from "@src/invoice/operations/deleteInvoice",
   entities: [User, Invoice, InvoiceLineItem, ProcessingJob]
 }
+action buyCredits {
+  fn: import { buyCredits } from "@src/invoice/operations/buyCredits",
+  entities: [User]
+}
 //#endregion

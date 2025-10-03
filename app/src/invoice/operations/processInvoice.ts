@@ -1,3 +1,4 @@
+import { checkAndDeductCredit } from '../utils/credits';
 import { extractInvoiceData } from '../utils/llm';
 import { HttpError } from 'wasp/server';
 import { processInvoiceOCR, downloadFileFromGCS } from '../utils/ocr';
@@ -42,6 +43,17 @@ export const processPendingInvoice = async (
     // Check if already processed
     if (invoice.status === 'COMPLETED') {
       return { success: true, message: 'Invoice already processed' };
+    }
+
+    // Check and deduct credit
+    const hasCredit = await checkAndDeductCredit(context.user.id, context.entities);
+    
+    if (!hasCredit) {
+      await context.entities.Invoice.update({
+        where: { id: invoiceId },
+        data: { status: 'PAYMENT_REQUIRED' },
+      });
+      throw new HttpError(402, 'Insufficient credits. Please purchase more credits to continue.');
     }
 
     // Update status to PROCESSING_OCR

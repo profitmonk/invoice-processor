@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { InvoiceUpload } from '../components/InvoiceUpload';
 import { InvoiceDetail } from '../components/InvoiceDetail';
+import { CreditsDisplay } from '../components/CreditsDisplay';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { processPendingInvoice, deleteInvoice, getUserInvoices, useQuery } from 'wasp/client/operations';
+import { processPendingInvoice, deleteInvoice, getUserInvoices, buyCredits, useQuery } from 'wasp/client/operations';
+import { useAuth } from 'wasp/client/auth';
 import { FileText, Clock, CheckCircle, XCircle, Search } from 'lucide-react';
 
 export default function InvoicesPage() {
@@ -13,6 +15,7 @@ export default function InvoicesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [message, setMessage] = useState<string>('');
 
+  const { data: user } = useAuth();
   const { data: invoices, isLoading, refetch } = useQuery(getUserInvoices);
 
   const handleUploadSuccess = () => {
@@ -43,6 +46,17 @@ export default function InvoicesPage() {
       setMessage('Invoice deleted');
       setSelectedInvoice(null);
       refetch();
+    } catch (error: any) {
+      setMessage(`Error: ${error.message}`);
+    }
+  };
+
+  const handleBuyCredits = async () => {
+    try {
+      // Hardcode the price ID for now - we'll make it configurable later
+      const priceId = 'price_1SE0MIFBSzh5QawRRrB6fj5g'; // Replace with your actual Stripe price ID
+      const { checkoutUrl } = await buyCredits({ priceId });
+      window.location.href = checkoutUrl;
     } catch (error: any) {
       setMessage(`Error: ${error.message}`);
     }
@@ -94,7 +108,14 @@ export default function InvoicesPage() {
           Upload your invoices for AI-powered OCR and data extraction.
         </p>
 
-        <div className="mx-auto mt-8 max-w-3xl">
+        <div className="mx-auto mt-8 max-w-3xl space-y-6">
+          {user && (
+            <CreditsDisplay 
+              credits={user.credits || 0} 
+              onBuyCredits={handleBuyCredits}
+            />
+          )}
+          
           <InvoiceUpload onUploadSuccess={handleUploadSuccess} />
         </div>
 

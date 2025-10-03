@@ -23,6 +23,7 @@ import {
   type SubscriptionUpdatedData,
 } from "./webhookPayload";
 
+
 export const stripeWebhook: PaymentsWebhook = async (
   request,
   response,
@@ -30,8 +31,38 @@ export const stripeWebhook: PaymentsWebhook = async (
 ) => {
   try {
     const rawStripeEvent = constructStripeEvent(request);
+    
+    // Handle invoice credits BEFORE strict parsing
+    if (rawStripeEvent.type === 'checkout.session.completed') {
+      const session = rawStripeEvent.data.object as any;
+      
+      // Check if this is an invoice credits purchase
+      if (session.metadata?.type === 'invoice_credits' && session.metadata?.userId) {
+        const userId = session.metadata.userId;
+        
+        try {
+          await context.entities.User.update({
+            where: { id: userId },
+            data: { 
+              credits: { 
+                increment: 10 
+              } 
+            },
+          });
+          
+          console.log(`✅ Added 10 invoice credits to user ${userId}`);
+          return response.json({ received: true });
+        } catch (error) {
+          console.error('❌ Failed to add credits:', error);
+          // Continue to normal webhook processing as fallback
+        }
+      }
+    }
+    
+    // Original webhook processing for payment plans
     const { eventName, data } = await parseWebhookPayload(rawStripeEvent);
     const prismaUserDelegate = context.entities.User;
+    
     switch (eventName) {
       case "checkout.session.completed":
         await handleCheckoutSessionCompleted(data, prismaUserDelegate);
@@ -46,13 +77,10 @@ export const stripeWebhook: PaymentsWebhook = async (
         await handleCustomerSubscriptionDeleted(data, prismaUserDelegate);
         break;
       default:
-        // If you'd like to handle more events, you can add more cases above.
-        // When deploying your app, you configure your webhook in the Stripe dashboard to only send the events that you're
-        // handling above and that are necessary for the functioning of your app. See: https://docs.opensaas.sh/guides/deploying/#setting-up-your-stripe-webhook
-        // In development, it is likely that you will receive other events that you are not handling, and that's fine. These can be ignored without any issues.
         assertUnreachable(eventName);
     }
-    return response.json({ received: true }); // Stripe expects a 200 response to acknowledge receipt of the webhook
+    
+    return response.json({ received: true });
   } catch (err) {
     if (err instanceof UnhandledWebhookEventError) {
       console.error(err.message);
@@ -69,7 +97,6 @@ export const stripeWebhook: PaymentsWebhook = async (
     }
   }
 };
-
 function constructStripeEvent(request: express.Request): Stripe.Event {
   try {
     const secret = requireNodeEnvVar("STRIPE_WEBHOOK_SECRET");
@@ -110,12 +137,37 @@ async function handleCheckoutSessionCompleted(
     await saveSuccessfulOneTimePayment(session, prismaUserDelegate);
   }
 }
-
 async function saveSuccessfulOneTimePayment(
   session: SessionCompletedData,
   prismaUserDelegate: PrismaClient["user"],
 ) {
   const userStripeId = session.customer;
+  
+  // Fetch full session from Stripe to get metadata
+  const fullSession = await stripe.checkout.sessions.retrieve(session.id);
+  
+  // Check if this is an invoice credits purchase
+  if (fullSession.metadata?.type === 'invoice_credits') {
+    const userId = fullSession.metadata.userId;
+    if (!userId) {
+      throw new HttpError(400, 'Missing userId in session metadata');
+    }
+    
+    // Add 10 credits for invoice processing
+    await prismaUserDelegate.update({
+      where: { id: userId },
+      data: {
+        credits: {
+          increment: 10,
+        },
+      },
+    });
+    
+    console.log(`Added 10 invoice credits to user ${userId}`);
+    return;
+  }
+  
+  // Original logic for payment plans
   const lineItems = await getCheckoutLineItemsBySessionId(session.id);
   const lineItemPriceId = extractPriceId(lineItems);
   const planId = getPlanIdByPriceId(lineItemPriceId);
