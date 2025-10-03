@@ -331,4 +331,8 @@ query getUserInvoices {
   fn: import { getUserInvoices } from "@src/invoice/operations/getInvoices",
   entities: [User, Invoice]
 }
+action deleteInvoice {
+  fn: import { deleteInvoice } from "@src/invoice/operations/deleteInvoice",
+  entities: [User, Invoice, InvoiceLineItem, ProcessingJob]
+}
 //#endregion

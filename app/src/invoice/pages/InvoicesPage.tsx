@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { InvoiceUpload } from '../components/InvoiceUpload';
+import { InvoiceDetail } from '../components/InvoiceDetail';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { processPendingInvoice, getUserInvoices, useQuery } from 'wasp/client/operations';
-import { FileText, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Input } from '../../components/ui/input';
+import { processPendingInvoice, deleteInvoice, getUserInvoices, useQuery } from 'wasp/client/operations';
+import { FileText, Clock, CheckCircle, XCircle, Search } from 'lucide-react';
 
 export default function InvoicesPage() {
   const [processingId, setProcessingId] = useState<string>('');
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [message, setMessage] = useState<string>('');
 
   const { data: invoices, isLoading, refetch } = useQuery(getUserInvoices);
@@ -31,19 +35,52 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleDelete = async (invoiceId: string) => {
+    if (!confirm('Are you sure you want to delete this invoice?')) return;
+
+    try {
+      await deleteInvoice({ invoiceId });
+      setMessage('Invoice deleted');
+      setSelectedInvoice(null);
+      refetch();
+    } catch (error: any) {
+      setMessage(`Error: ${error.message}`);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'COMPLETED':
-      case 'PROCESSING_LLM':
         return <CheckCircle className="h-5 w-5 text-green-500" />;
       case 'FAILED':
         return <XCircle className="h-5 w-5 text-red-500" />;
       case 'PROCESSING_OCR':
-        return <Clock className="h-5 w-5 text-blue-500 animate-spin" />;
+      case 'PROCESSING_LLM':
+        return <Clock className="h-5 w-5 text-blue-500" />;
       default:
         return <FileText className="h-5 w-5 text-gray-400" />;
     }
   };
+
+  const filteredInvoices = invoices?.filter((inv: any) =>
+    inv.fileName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    inv.vendorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    inv.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (selectedInvoice) {
+    return (
+      <div className="py-10 lg:mt-10">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <InvoiceDetail
+            invoice={selectedInvoice}
+            onClose={() => setSelectedInvoice(null)}
+            onDelete={handleDelete}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="py-10 lg:mt-10">
@@ -67,34 +104,52 @@ export default function InvoicesPage() {
 
         <Card className="mx-auto mt-8 max-w-3xl">
           <CardHeader>
-            <CardTitle>Your Invoices</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Your Invoices</CardTitle>
+              <div className="relative w-64">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search invoices..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <p className="text-muted-foreground text-center py-8">Loading...</p>
-            ) : invoices && invoices.length > 0 ? (
+            ) : filteredInvoices && filteredInvoices.length > 0 ? (
               <div className="space-y-3">
-                {invoices.map((invoice: any) => (
-                  <Card key={invoice.id} className="p-4">
+                {filteredInvoices.map((invoice: any) => (
+                  <Card
+                    key={invoice.id}
+                    className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => setSelectedInvoice(invoice)}
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3 flex-1">
                         {getStatusIcon(invoice.status)}
                         <div className="flex-1">
                           <p className="font-medium">{invoice.fileName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Status: {invoice.status}
-                          </p>
-                          {invoice.ocrText && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              OCR extracted: {invoice.ocrText.substring(0, 100)}...
+                          {invoice.vendorName && (
+                            <p className="text-sm text-muted-foreground">
+                              {invoice.vendorName}
                             </p>
                           )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {invoice.status} • {invoice.totalAmount ? `$${invoice.totalAmount}` : 'Processing...'}
+                          </p>
                         </div>
                       </div>
                       {invoice.status === 'UPLOADED' && (
                         <Button
                           size="sm"
-                          onClick={() => handleProcess(invoice.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleProcess(invoice.id);
+                          }}
                           disabled={processingId === invoice.id}
                         >
                           {processingId === invoice.id ? 'Processing...' : 'Process'}
@@ -106,7 +161,7 @@ export default function InvoicesPage() {
               </div>
             ) : (
               <p className="text-muted-foreground text-center py-8">
-                No invoices uploaded yet
+                {searchTerm ? 'No invoices found' : 'No invoices uploaded yet'}
               </p>
             )}
           </CardContent>

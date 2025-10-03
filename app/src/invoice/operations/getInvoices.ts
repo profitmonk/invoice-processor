@@ -7,8 +7,13 @@ export const getUserInvoices = async (args: any, context: any) => {
 
   const invoices = await context.entities.Invoice.findMany({
     where: { userId: context.user.id },
+    include: {
+      lineItems: {
+        orderBy: { lineNumber: 'asc' },
+      },
+    },
     orderBy: { createdAt: 'desc' },
-    take: 10,
+    take: 50,
   });
 
   return invoices;
