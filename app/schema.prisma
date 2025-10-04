@@ -185,7 +185,7 @@ model InvoiceLineItem {
   description   String
   quantity      Float?
   unitPrice     Float?
-  amount        Float
+  amount        Float?
   taxAmount     Float?
   category      String?
   

@@ -122,8 +122,9 @@ export const processPendingInvoice = async (
 
     // Save line items
     if (structuredData.lineItems && structuredData.lineItems.length > 0) {
+      const validLineItems = structuredData.lineItems.filter(item => item.amount !== null);
       await Promise.all(
-        structuredData.lineItems.map((item, index) =>
+        validLineItems.map((item, index) =>
           context.entities.InvoiceLineItem.create({
             data: {
               invoiceId: invoiceId,

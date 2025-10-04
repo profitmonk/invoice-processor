@@ -29,6 +29,13 @@ export async function extractInvoiceData(ocrText: string): Promise<InvoiceData> 
     console.log('Calling OpenAI to structure invoice data...');
 
     const prompt = `You are an expert at extracting structured data from invoice OCR text.
+The OCR text may contain errors, misspellings, or be incomplete due to image quality issues.
+Use your best judgment to infer missing or unclear information.
+
+IMPORTANT: 
+- If you cannot determine an amount for a line item, set amount to null
+- If vendor name is unclear, make your best guess based on context
+- If dates are malformed, try to parse them reasonably
 
 Extract the following information from this invoice text:
 - Vendor/Company name

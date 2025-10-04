@@ -38,6 +38,39 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleProcessAll = async () => {
+    if (!invoices || invoices.length === 0) return;
+    
+    const uploadedInvoices = invoices.filter(
+      (inv: any) => inv.status === 'UPLOADED'
+    );
+    
+    if (uploadedInvoices.length === 0) {
+      setMessage('No invoices to process');
+      return;
+    }
+    
+    setMessage(`Processing ${uploadedInvoices.length} invoices...`);
+    
+    for (const invoice of uploadedInvoices) {
+      try {
+        setProcessingId(invoice.id);
+        await processPendingInvoice({ invoiceId: invoice.id });
+        setMessage(`Processed ${invoice.fileName}`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second between each
+      } catch (error: any) {
+        console.error(`Failed to process ${invoice.fileName}:`, error);
+        setMessage(`Error on ${invoice.fileName}: ${error.message}`);
+        // Continue with next invoice despite error
+      }
+    }
+    
+    setProcessingId('');
+    setMessage('Batch processing complete');
+    refetch();
+  };
+
+
   const handleDelete = async (invoiceId: string) => {
     if (!confirm('Are you sure you want to delete this invoice?')) return;
 
@@ -127,14 +160,25 @@ export default function InvoicesPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Your Invoices</CardTitle>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search invoices..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
+              <div className="flex gap-3 items-center">
+                {invoices && invoices.filter((i: any) => i.status === 'UPLOADED').length > 0 && (
+                  <Button 
+                    onClick={handleProcessAll}
+                    disabled={!!processingId}
+                    size="sm"
+                  >
+                    Process All
+                  </Button>
+                )}
+                <div className="relative w-64">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search invoices..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>

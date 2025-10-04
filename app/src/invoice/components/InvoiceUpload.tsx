@@ -12,7 +12,7 @@ interface InvoiceUploadProps {
 }
 
 const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 15 * 1024 * 1024; // 5MB
 
 export function InvoiceUpload({ onUploadSuccess }: InvoiceUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
