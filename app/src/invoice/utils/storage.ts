@@ -1,41 +1,40 @@
-////import { Storage } from '@google-cloud/storage';
-////import path from 'path';
-////
-////// Initialize GCS client
-////const storage = new Storage({
-////  projectId: process.env.GCS_PROJECT_ID,
-////  keyFilename: path.resolve(process.cwd(), process.env.GCS_KEY_FILE || '../../../gcp-service-account-key.json')
-////});
-////
-////const bucketName = process.env.GCS_BUCKET_NAME || 'invoice-processor-uploads';
-////const bucket = storage.bucket(bucketName);
-
 import { Storage } from '@google-cloud/storage';
+import path from 'path';
 
 // Initialize GCS client
 let storage: Storage;
 
 try {
-  // In production, use environment variable for key file path
-  // In development, GCS client will find credentials automatically if GOOGLE_APPLICATION_CREDENTIALS is set
-  // or use the key file in the app root
-  const keyFilePath = process.env.GCS_KEY_FILE 
-    ? process.env.GCS_KEY_FILE.startsWith('/') 
-      ? process.env.GCS_KEY_FILE
-      : `${process.cwd()}/${process.env.GCS_KEY_FILE}`
-    : `${process.cwd()}/gcp-service-account-key.json`;
-
-  storage = new Storage({
-    projectId: process.env.GCS_PROJECT_ID,
-    keyFilename: keyFilePath,
-  });
+  const keyBase64 = process.env.GCS_KEY_BASE64;
   
-  console.log('GCS Storage initialized with key file:', keyFilePath);
+  if (keyBase64) {
+    // Production: decode from base64 environment variable
+    const keyJson = Buffer.from(keyBase64, 'base64').toString('utf-8');
+    const credentials = JSON.parse(keyJson);
+    
+    storage = new Storage({
+      projectId: process.env.GCS_PROJECT_ID,
+      credentials: credentials,
+    });
+    
+    console.log('GCS Storage initialized (production mode)');
+  } else {
+    // Local development: use absolute path to key file
+    const keyFilePath = path.resolve(process.cwd(), '../../../gcp-service-account-key.json');
+    console.log('DEBUG: Looking for GCS key at:', keyFilePath);
+    console.log('DEBUG: process.cwd() is:', process.cwd());
+    
+    storage = new Storage({
+      projectId: process.env.GCS_PROJECT_ID,
+      keyFilename: keyFilePath,
+    });
+    
+    console.log('GCS Storage initialized (local mode) from:', keyFilePath);
+  }
 } catch (error) {
   console.error('Failed to initialize GCS Storage:', error);
   throw error;
 }
-
 const bucketName = process.env.GCS_BUCKET_NAME || 'invoice-processor-uploads';
 const bucket = storage.bucket(bucketName);
 
@@ -45,7 +44,6 @@ export interface UploadResult {
   fileSize: number;
   mimeType: string;
 }
-
 /**
  * Generate a signed URL for uploading a file directly from browser
  */

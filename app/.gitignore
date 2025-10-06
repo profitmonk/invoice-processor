@@ -2,3 +2,4 @@ node_modules/
 .wasp/
 gcp-service-account-key.json
 .env.server
+installFlySecrets.sh
